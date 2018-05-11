@@ -9,6 +9,7 @@
 #include "Eigen-3.3/Eigen/QR"
 #include "json.hpp"
 
+#define steps 50
 using namespace std;
 
 // for convenience
@@ -241,40 +242,56 @@ int main() {
 
           	vector<double> next_x_vals;
           	vector<double> next_y_vals;
+            short lane =  1;
 
-            double pos_x;
-            double pos_y;
-            double angle;
+            double distance_increment = 0.15; //in metres
 
-            unsigned short path_size = previous_path_x.size();
+            for(unsigned i = 0; i < steps; i++){
+              double next_s = car_s + (i + 1) * distance_increment;
+              short next_d =  2 + lane * 4;
 
-             for(unsigned i = 0; i < path_size; i++){
-              next_x_vals.push_back(previous_path_x[i]);
-              next_y_vals.push_back(previous_path_y[i]);
+              vector<double> xy = getXY(next_s, next_d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+              next_x_vals.push_back(xy[0] + (distance_increment * i ) * cos(deg2rad(car_yaw)));
+              next_y_vals.push_back(xy[1] + (distance_increment * i ) * sin(deg2rad(car_yaw)));
             }
 
-            if(previous_path_x.empty()) {
-              pos_x = car_x;
-              pos_y = car_y;
-              angle = deg2rad(car_yaw);
-            }else {
-              pos_x = previous_path_x[path_size-1];
-              pos_y = previous_path_y[path_size-1];
 
-              double pos_x2 = previous_path_x[path_size-2];
-              double pos_y2 = previous_path_y[path_size-2];
-              angle = atan2(pos_y-pos_y2,pos_x-pos_x2);
-            }
 
-            double dist_inc = 0.005;
+            // double pos_x;
+            // double pos_y;
+            // double angle;
+            //
+            // unsigned short path_size = previous_path_x.size();
+            //
+            //  for(unsigned i = 0; i < path_size; i++){
+            //   next_x_vals.push_back(previous_path_x[i]);
+            //   next_y_vals.push_back(previous_path_y[i]);
+            // }
+            //
+            // if(previous_path_x.empty()) {
+            //   pos_x = car_x;
+            //   pos_y = car_y;
+            //   angle = deg2rad(car_yaw);
+            // }else {
+            //   pos_x = previous_path_x[path_size-1];
+            //   pos_y = previous_path_y[path_size-1];
+            //
+            //   double pos_x2 = previous_path_x[path_size-2];
+            //   double pos_y2 = previous_path_y[path_size-2];
+            //   angle = atan2(pos_y-pos_y2,pos_x-pos_x2);
+            // }
+            //
+            // double dist_inc = 0.5;
+            //
+            // for(int i = 0; i < 50-path_size; i++)
+            // {
+            //     next_x_vals.push_back(pos_x+(dist_inc)*cos(angle+(i+1)*(pi()/100)));
+            //     next_y_vals.push_back(pos_y+(dist_inc)*sin(angle+(i+1)*(pi()/100)));
+            //     pos_x += (dist_inc)*cos(angle+(i+1)*(pi()/100));
+            //     pos_y += (dist_inc)*sin(angle+(i+1)*(pi()/100));
+            // }
 
-            for(int i = 0; i < 50-path_size; i++)
-            {
-                next_x_vals.push_back(pos_x+(dist_inc)*cos(angle+(i+1)*(pi()/100)));
-                next_y_vals.push_back(pos_y+(dist_inc)*sin(angle+(i+1)*(pi()/100)));
-                pos_x += (dist_inc)*cos(angle+(i+1)*(pi()/100));
-                pos_y += (dist_inc)*sin(angle+(i+1)*(pi()/100));
-            }
+
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
           	msgJson["next_x"] = next_x_vals;
           	msgJson["next_y"] = next_y_vals;
