@@ -213,12 +213,12 @@ int main() {
 
       if (s != "") {
         auto j = json::parse(s);
-        
+
         string event = j[0].get<string>();
-        
+
         if (event == "telemetry") {
           // j[1] is the data JSON object
-          
+
         	// Main car's localization Data
           	double car_x = j[1]["x"];
           	double car_y = j[1]["y"];
@@ -230,7 +230,7 @@ int main() {
           	// Previous path data given to the Planner
           	auto previous_path_x = j[1]["previous_path_x"];
           	auto previous_path_y = j[1]["previous_path_y"];
-          	// Previous path's end s and d values 
+          	// Previous path's end s and d values
           	double end_path_s = j[1]["end_path_s"];
           	double end_path_d = j[1]["end_path_d"];
 
@@ -242,7 +242,39 @@ int main() {
           	vector<double> next_x_vals;
           	vector<double> next_y_vals;
 
+            double pos_x;
+            double pos_y;
+            double angle;
 
+            unsigned short path_size = previous_path_x.size();
+
+             for(unsigned i = 0; i < path_size; i++){
+              next_x_vals.push_back(previous_path_x[i]);
+              next_y_vals.push_back(previous_path_y[i]);
+            }
+
+            if(previous_path_x.empty()) {
+              pos_x = car_x;
+              pos_y = car_y;
+              angle = deg2rad(car_yaw);
+            }else {
+              pos_x = previous_path_x[path_size-1];
+              pos_y = previous_path_y[path_size-1];
+
+              double pos_x2 = previous_path_x[path_size-2];
+              double pos_y2 = previous_path_y[path_size-2];
+              angle = atan2(pos_y-pos_y2,pos_x-pos_x2);
+            }
+
+            double dist_inc = 0.005;
+
+            for(int i = 0; i < 50-path_size; i++)
+            {
+                next_x_vals.push_back(pos_x+(dist_inc)*cos(angle+(i+1)*(pi()/100)));
+                next_y_vals.push_back(pos_y+(dist_inc)*sin(angle+(i+1)*(pi()/100)));
+                pos_x += (dist_inc)*cos(angle+(i+1)*(pi()/100));
+                pos_y += (dist_inc)*sin(angle+(i+1)*(pi()/100));
+            }
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
           	msgJson["next_x"] = next_x_vals;
           	msgJson["next_y"] = next_y_vals;
@@ -251,7 +283,7 @@ int main() {
 
           	//this_thread::sleep_for(chrono::milliseconds(1000));
           	ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
-          
+
         }
       } else {
         // Manual driving
