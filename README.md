@@ -25,11 +25,16 @@ The primary objective of this project is to build a path planner to generate val
 
 
 
-![Max Distance](./pictures/max_distance.png "Max Distance")
+![Max Distance](./pictures/max_distance.png "Max_Distance")
+
 ![Lane Change](./pictures/lane_change_right.png "lane_change_right")
+
 ![Lane Change](./pictures/lane_change_left.png "lane_change_left")
+
 ![Lane Change](./pictures/lane_change_left_1.png "lane_change_left")
+
 ![Lane Change](./pictures/lane_change_top_view.png "lane_change_top_view")
+
 ![SlowDown](./pictures/slowdown.png "Slow Down")
 
 
