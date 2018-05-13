@@ -8,9 +8,15 @@
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/QR"
 #include "json.hpp"
+#include "spline.h"
 
 #define steps 50
+#define mph_mps 2.24
+#define DEBUG false
+#define MAX_SPEED 48
+
 using namespace std;
+using namespace tk;
 
 // for convenience
 using json = nlohmann::json;
@@ -137,7 +143,7 @@ vector<double> getFrenet(double x, double y, double theta, const vector<double> 
 }
 
 // Transform from Frenet s,d coordinates to Cartesian x,y
-vector<double> getXY(double s, double d, const vector<double> &maps_s, const vector<double> &maps_x, const vector<double> &maps_y)
+pair<double,double> getXY(double s, double d, const vector<double> &maps_s, const vector<double> &maps_x, const vector<double> &maps_y)
 {
 	int prev_wp = -1;
 
@@ -160,8 +166,34 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s, const vec
 	double x = seg_x + d*cos(perp_heading);
 	double y = seg_y + d*sin(perp_heading);
 
-	return {x,y};
+	return make_pair(x,y);
 
+}
+
+bool is_lane_change_possible(const json& sensor_fusion, const short& lane, const double& car_s, const short& prev_size  ) {
+  for(unsigned i = 0; i < sensor_fusion.size(); i++){
+    double d = sensor_fusion[i][6];
+    if ( (d < (4 * (lane + 1))) && (d > (4 * lane)) ){
+      double vx = sensor_fusion[i][3];
+      double vy = sensor_fusion[i][4];
+      double check_speed = distance(0 , 0, vx, vy);
+      double check_car_s = sensor_fusion[i][5];
+
+      check_car_s += (double) prev_size * .02 * check_speed;
+
+      if(check_car_s > car_s && (check_car_s - car_s) < 25){
+        if(DEBUG)
+          cout<<"if statement 1: check_car_s : "<<check_car_s<<" car_s " <<car_s <<endl;
+        return false;
+      }
+      if((check_car_s < car_s) && (car_s - check_car_s < 15)){
+        if(DEBUG)
+          cout<<"if statement 2: check_car_s : "<<check_car_s<<" car_s " <<car_s <<endl;
+        return false;
+      }
+    }
+  }
+  return true;
 }
 
 int main() {
@@ -201,13 +233,20 @@ int main() {
   	map_waypoints_dy.push_back(d_y);
   }
 
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+
+  short lane  =  1;
+  double ref_vel = 0.0; //miles per hour
+  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy, &lane, &ref_vel](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
     //auto sdata = string(data).substr(0, length);
     //cout << sdata << endl;
+
+    bool too_close = false;
+    bool lane_change = false;
+    short best_lane = -1;
     if (length && length > 2 && data[0] == '4' && data[1] == '2') {
 
       auto s = hasData(data);
@@ -238,58 +277,243 @@ int main() {
           	// Sensor Fusion Data, a list of all other cars on the same side of the road.
           	auto sensor_fusion = j[1]["sensor_fusion"];
 
-          	json msgJson;
+            short prev_size = previous_path_x.size();
 
-          	vector<double> next_x_vals;
-          	vector<double> next_y_vals;
-            short lane =  1;
-
-            double distance_increment = 0.15; //in metres
-
-            for(unsigned i = 0; i < steps; i++){
-              double next_s = car_s + (i + 1) * distance_increment;
-              short next_d =  2 + lane * 4;
-
-              vector<double> xy = getXY(next_s, next_d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-              next_x_vals.push_back(xy[0] + (distance_increment * i ) * cos(deg2rad(car_yaw)));
-              next_y_vals.push_back(xy[1] + (distance_increment * i ) * sin(deg2rad(car_yaw)));
+            if(prev_size > 0){
+              car_s = end_path_s;
             }
 
 
 
-            // double pos_x;
-            // double pos_y;
-            // double angle;
+            for(unsigned i = 0; i < sensor_fusion.size(); i++){
+              double d = sensor_fusion[i][6];
+              if ( (d < (4 * (lane + 1))) && (d > (4 * lane)) ){
+                double vx = sensor_fusion[i][3];
+                double vy = sensor_fusion[i][4];
+                double check_speed = distance(0, 0, vx, vy);
+                double check_car_s = sensor_fusion[i][5];
+
+                check_car_s += (double) prev_size * .02 * check_speed;
+
+                if(check_car_s > car_s && (check_car_s - car_s) < 30){
+                  too_close = true;
+
+                }
+              }
+            }
+            if(too_close){
+              unsigned right_lane = -1;
+              unsigned left_lane = -1;
+              bool free_lane = false;
+              unsigned next_lane = lane +1;
+              unsigned prev_lane = lane -1;
+              switch (lane) {
+                case 0:
+                  // for(unsigned i = 0; i < sensor_fusion.size(); i++){
+                  //   double d = sensor_fusion[i][6];
+                  //   if ( (d < (4 * (next_lane + 1))) && (d > (4 * next_lane)) ){
+                  //     double vx = sensor_fusion[i][3];
+                  //     double vy = sensor_fusion[i][4];
+                  //     double check_speed = distance(vy, 0, vx, 0);
+                  //     double check_car_s = sensor_fusion[i][5];
+                  //
+                  //     check_car_s += (double) prev_size * .02 * check_speed;
+                  //
+                  //     if(check_car_s > car_s && (check_car_s - car_s) < 30){
+                  //       free_lane = false;
+                  //     }
+                  //     if(car_s - check_car_s < 10){
+                  //       free_lane = false;
+                  //     }
+                  //   }
+                  //   if(!free_lane)
+                  //     break;
+                  // }
+                  // break;
+                  free_lane = is_lane_change_possible(sensor_fusion, next_lane, car_s, prev_size);
+                  if(free_lane)
+                    lane = next_lane;
+                  break;
+
+                  case 1:
+                    // for(unsigned i = 0; i < sensor_fusion.size(); i++){
+                    //   double d = sensor_fusion[i][6];
+                    //   if ( (d < (4 * (next_lane + 1))) && (d > (4 * next_lane)) ){
+                    //     double vx = sensor_fusion[i][3];
+                    //     double vy = sensor_fusion[i][4];
+                    //     double check_speed = distance(vy, 0, vx, 0);
+                    //     double check_car_s = sensor_fusion[i][5];
+                    //
+                    //     check_car_s += (double) prev_size * .02 * check_speed;
+                    //
+                    //     if(check_car_s > car_s && (check_car_s - car_s) < 30){
+                    //       free_lane = false;
+                    //     }
+                    //     if(car_s - check_car_s < 10){
+                    //       free_lane = false;
+                    //     }
+                    //   }
+                    //   if(!free_lane)
+                    //     break;
+                    // }
+                    // break;
+                    free_lane = is_lane_change_possible(sensor_fusion, next_lane, car_s,prev_size);
+                    if(free_lane){
+                      lane = next_lane;
+                      break;
+                    }
+
+                    if(DEBUG)
+                      cout<<"lane : "<< lane <<"  " <<free_lane<<"  " <<endl;
+
+                    free_lane = is_lane_change_possible(sensor_fusion, prev_lane, car_s,prev_size);
+                    if(free_lane){
+                      lane = prev_lane;
+                      break;
+                    }
+
+                    if(DEBUG)
+                      cout<<"lane : "<< lane <<"  " <<free_lane<<"  " <<endl;
+
+
+                    case 2:
+                      free_lane = is_lane_change_possible(sensor_fusion, prev_lane, car_s, prev_size);
+                      if(free_lane)
+                        lane = prev_lane;
+                      break;
+              }
+              // if(!free_lane)
+              ref_vel -= 0.224;
+
+            }else{
+              if(ref_vel < MAX_SPEED)
+                ref_vel += 0.224;
+            }
+
+          	json msgJson;
+
+          	vector<double> next_x_vals;
+          	vector<double> next_y_vals;
+
+
+
+            vector<double> ptsx;
+            vector<double> ptsy;
+
+            double ref_x = -1;
+            double ref_y = -1;
+            double ref_yaw = -1;
+
+            if(prev_size < 2){
+              ref_x = car_x;
+              ref_y = car_y;
+              ref_yaw = deg2rad(car_yaw);
+
+              double prev_car_x = car_x - cos(car_yaw);
+              ptsx.push_back(prev_car_x);
+              ptsx.push_back(car_x);
+              double prev_car_y = car_y - sin(car_yaw);
+              ptsy.push_back(prev_car_y);
+              ptsy.push_back(car_y);
+              if(DEBUG){
+                cout<<"ref_x ref_y "<<ref_x<<" "<<ref_y<<"  "<<ref_yaw<<endl;
+                cout<<"--------------------------"<<endl;
+                cout<<"car_x car_y "<<car_x<<" "<<car_y<<"  "<<car_yaw<<endl;
+                cout<<"--------------------------"<<endl;
+              }
+            } else {
+              ref_x = previous_path_x[prev_size - 1];
+              ref_y = previous_path_y[prev_size - 1];
+              ptsx.push_back(previous_path_x[prev_size - 2]);
+              ptsx.push_back(ref_x);
+              ptsy.push_back(previous_path_y[prev_size - 2]);
+              ptsy.push_back(ref_y);
+              ref_yaw =   atan2(ptsy[1] - ptsy[0], ptsx[1] - ptsx[0]);
+              if(DEBUG){
+                cout<<"ptsx0 ptsy0 "<<ptsx[0]<<" "<<ptsy[0]<<"  "<<ref_yaw<<endl;
+                cout<<"--------------------------"<<endl;
+                cout<<"ptsx1 ptsy1 "<<ptsx[1]<<" "<<ptsy[1]<<"  "<<car_yaw<<endl;
+                cout<<"--------------------------"<<endl;
+              }
+
+            }
+
+            for (unsigned i = 1; i <= 3; i++){
+              pair<double,double> wp = getXY(car_s + 30 * i, 2 + 4 * lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+              ptsx.push_back(wp.first);
+              ptsy.push_back(wp.second);
+            }
+            if(DEBUG){
+              cout<<"ptsx    ptsy "<<endl;
+              for (unsigned i = 0; i < 5; i++){
+                cout<<ptsx[i]<<"  "<<ptsy[i]<<endl;
+              }
+              cout<<"--------------------------"<<endl;
+            }
+
+
+            for(unsigned i = 0; i < ptsx.size(); i++){
+              double shift_x = ptsx[i] - ref_x;
+              double shift_y = ptsy[i] - ref_y;
+
+              ptsx[i] = (shift_x * cos(0 - ref_yaw) - shift_y * sin(0 - ref_yaw));
+              ptsy[i] = (shift_x * sin(0 - ref_yaw) + shift_y * cos(0 - ref_yaw));
+            }
+            if(DEBUG){
+              cout<<"ptsx    ptsy after rotation"<<endl;
+              for (unsigned i = 0; i < 5; i++){
+                cout<<ptsx[i]<<"  "<<ptsy[i]<<endl;
+              }
+              cout<<"--------------------------"<<endl<<endl<<endl;
+            }
+
+
+            //create spline
+            spline s;
+            s.set_points(ptsx, ptsy);
+
+            for(unsigned i = 0; i < previous_path_x.size(); i++){
+              next_x_vals.push_back(previous_path_x[i]);
+              next_y_vals.push_back(previous_path_y[i]);
+            }
+
+            double target_x = 30.0;
+            double target_y = s(target_x);
+            double target_distance = distance(0, 0, target_x, target_y);
+
+            double x_add_on = 0;
+
+            for (unsigned i = 1; i <= steps - previous_path_x.size(); i++){
+              double N = (target_distance / (0.02 * ref_vel / mph_mps));
+              double x_point = x_add_on + target_x / N;
+              double y_point = s(x_point);
+              x_add_on = x_point;
+
+              double x_ref = x_point;
+              double y_ref = y_point;
+
+              x_point = (x_ref * cos(ref_yaw) - y_ref * sin(ref_yaw));
+              y_point = (x_ref * sin(ref_yaw) + y_ref * cos(ref_yaw));
+
+              x_point += ref_x;
+              y_point += ref_y;
+
+              next_x_vals.push_back(x_point);
+              next_y_vals.push_back(y_point);
+            }
+            // double distance_increment = 0.15; //in metres
             //
-            // unsigned short path_size = previous_path_x.size();
+            // for(unsigned i = 0; i < steps; i++){
+            //   double next_s = car_s + (i + 1) * distance_increment;
+            //   short next_d =  2 + lane * 4;
             //
-            //  for(unsigned i = 0; i < path_size; i++){
-            //   next_x_vals.push_back(previous_path_x[i]);
-            //   next_y_vals.push_back(previous_path_y[i]);
+            //   pair<double,double> xy = getXY(next_s, next_d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            //   next_x_vals.push_back(xy.first + (distance_increment * i ) * cos(deg2rad(car_yaw)));
+            //   next_y_vals.push_back(xy.second + (distance_increment * i ) * sin(deg2rad(car_yaw)));
             // }
-            //
-            // if(previous_path_x.empty()) {
-            //   pos_x = car_x;
-            //   pos_y = car_y;
-            //   angle = deg2rad(car_yaw);
-            // }else {
-            //   pos_x = previous_path_x[path_size-1];
-            //   pos_y = previous_path_y[path_size-1];
-            //
-            //   double pos_x2 = previous_path_x[path_size-2];
-            //   double pos_y2 = previous_path_y[path_size-2];
-            //   angle = atan2(pos_y-pos_y2,pos_x-pos_x2);
-            // }
-            //
-            // double dist_inc = 0.5;
-            //
-            // for(int i = 0; i < 50-path_size; i++)
-            // {
-            //     next_x_vals.push_back(pos_x+(dist_inc)*cos(angle+(i+1)*(pi()/100)));
-            //     next_y_vals.push_back(pos_y+(dist_inc)*sin(angle+(i+1)*(pi()/100)));
-            //     pos_x += (dist_inc)*cos(angle+(i+1)*(pi()/100));
-            //     pos_y += (dist_inc)*sin(angle+(i+1)*(pi()/100));
-            // }
+
+
+
 
 
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
