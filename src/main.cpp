@@ -13,7 +13,7 @@
 #define steps 50
 #define mph_mps 2.24
 #define DEBUG false
-#define MAX_SPEED 48
+#define MAX_SPEED 47
 
 using namespace std;
 using namespace tk;
