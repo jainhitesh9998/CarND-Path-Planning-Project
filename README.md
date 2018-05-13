@@ -20,22 +20,65 @@ The primary objective of this project is to build a path planner to generate val
 | Max Acceleration and Jerk are not Exceeded.| The car does not exceed a total acceleration of 10 m/s^2 and a jerk of 10 m/s^3.   |
 | Car does not have collisions. | No Collision warnings seen |
 | The car stays in its lane, except for the time between changing lanes. | The car stays in the lane most of the time expect while changing the lanes |
-| The car is able to change lanes | The car is able to change the lanes properly 
-|
+| The car is able to change lanes | The car is able to change the lanes properly |
 
 
 
+
+* Max Distance
 ![Max Distance](./pictures/max_distance.png "Max_Distance")
 
+* Lane Change 
 ![Lane Change](./pictures/lane_change_right.png "lane_change_right")
 
+* Lane Change
 ![Lane Change](./pictures/lane_change_left.png "lane_change_left")
 
+ * Lane Change
 ![Lane Change](./pictures/lane_change_left_1.png "lane_change_left")
 
+* Top View
 ![Lane Change](./pictures/lane_change_top_view.png "lane_change_top_view")
 
+* Slow Down
 ![SlowDown](./pictures/slowdown.png "Slow Down")
+
+### Model Description
+JSON Messages are sent by simulator and listened in main.cpp. Simulator send the data related to Car's co-ordinates, speed, velocity, yaw rate and Frenet coordinates. Simulator also returns sensor fusion data with details of other cars.
+The Model Works in the following way.
+
+* Check whether the current lane is empty or not and and also keep track of vehicles in the surrounding lanes and decide the further actions.
+
+* Depending the above analysis we decide whether to reduce speed or change lane or maintain the current lane. If there is a car in front and the other cars in the adjacent lanes are within the buffer distance of 25m in front and 15m in back, we reduce the speed. Else we shift the lane.
+```
+bool is_lane_change_possible(const json& sensor_fusion, const short& lane, const double& car_s, const short& prev_size  ) {
+  for(unsigned i = 0; i < sensor_fusion.size(); i++){
+    double d = sensor_fusion[i][6];
+    if ( (d < (4 * (lane + 1))) && (d > (4 * lane)) ){
+      double vx = sensor_fusion[i][3];
+      double vy = sensor_fusion[i][4];
+      double check_speed = distance(0 , 0, vx, vy);
+      double check_car_s = sensor_fusion[i][5];
+
+      check_car_s += (double) prev_size * .02 * check_speed;
+
+      if(check_car_s > car_s && (check_car_s - car_s) < 25){
+        if(DEBUG)
+          cout<<"if statement 1: check_car_s : "<<check_car_s<<" car_s " <<car_s <<endl;
+        return false;
+      }
+      if((check_car_s < car_s) && (car_s - check_car_s < 15)){
+        if(DEBUG)
+          cout<<"if statement 2: check_car_s : "<<check_car_s<<" car_s " <<car_s <<endl;
+        return false;
+      }
+    }
+  }
+  return true;
+}
+```
+
+* Depending on the output from above function, we decide on the trajectory. I used spline library for trajectory generation. I used 2 points from previous trajectory and 3 points at the distance 30, 60 and 90 m to create a spline model to generate 50 points. We use the previous unused points are used for generation of future points. This smoothens  the trajectory.
 
 
 
