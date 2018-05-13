@@ -1,5 +1,39 @@
 # CarND-Path-Planning-Project
 Self-Driving Car Engineer Nanodegree Program
+
+### Objective:
+The primary objective of this project is to build a path planner to generate valid trajectories for car to drive safely on the simulator while taking into account the following
+
+
+| Constraints        | Value           | 
+| ------------- |:-------------:| 
+| Max Acceleration     | 10 m/s^2 |
+| Max Jerk     | 10 m/s^3      |
+| Max Speed | 50 Miles Per Hour     |
+
+### Reflection
+
+| CRITERIA        | RESULT           | 
+| ------------- |:-------------:| 
+| The car is able to drive at least 4.32 miles without incident.    | I ran the simulator for 14 miles without incident|
+|The car drives according to the speed limit.    | The car doesn't drive faster than the speed limit. Also the car isn't driving much slower than speed limit unless obstructed by traffic.    |
+| Max Acceleration and Jerk are not Exceeded.| The car does not exceed a total acceleration of 10 m/s^2 and a jerk of 10 m/s^3.   |
+| Car does not have collisions. | No Collision warnings seen |
+| The car stays in its lane, except for the time between changing lanes. | The car stays in the lane most of the time expect while changing the lanes |
+| The car is able to change lanes | The car is able to change the lanes properly 
+|
+
+
+
+![Max Distance](./pictures/max_distance.png "Max Distance")
+![Lane Change](./pictures/lane_change_right.png "lane_change_right")
+![Lane Change](./pictures/lane_change_left.png "lane_change_left")
+![Lane Change](./pictures/lane_change_left_1.png "lane_change_left")
+![Lane Change](./pictures/lane_change_top_view.png "lane_change_top_view")
+![SlowDown](./pictures/slowdown.png "Slow Down")
+
+
+
    
 ### Simulator.
 You can download the Term3 Simulator which contains the Path Planning Project from the [releases tab (https://github.com/udacity/self-driving-car-sim/releases/tag/T3_v1.2).
