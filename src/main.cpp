@@ -302,61 +302,19 @@ int main() {
               }
             }
             if(too_close){
-              unsigned right_lane = -1;
-              unsigned left_lane = -1;
               bool free_lane = false;
               unsigned next_lane = lane +1;
               unsigned prev_lane = lane -1;
               switch (lane) {
                 case 0:
-                  // for(unsigned i = 0; i < sensor_fusion.size(); i++){
-                  //   double d = sensor_fusion[i][6];
-                  //   if ( (d < (4 * (next_lane + 1))) && (d > (4 * next_lane)) ){
-                  //     double vx = sensor_fusion[i][3];
-                  //     double vy = sensor_fusion[i][4];
-                  //     double check_speed = distance(vy, 0, vx, 0);
-                  //     double check_car_s = sensor_fusion[i][5];
-                  //
-                  //     check_car_s += (double) prev_size * .02 * check_speed;
-                  //
-                  //     if(check_car_s > car_s && (check_car_s - car_s) < 30){
-                  //       free_lane = false;
-                  //     }
-                  //     if(car_s - check_car_s < 10){
-                  //       free_lane = false;
-                  //     }
-                  //   }
-                  //   if(!free_lane)
-                  //     break;
-                  // }
-                  // break;
+
                   free_lane = is_lane_change_possible(sensor_fusion, next_lane, car_s, prev_size);
                   if(free_lane)
                     lane = next_lane;
                   break;
 
                   case 1:
-                    // for(unsigned i = 0; i < sensor_fusion.size(); i++){
-                    //   double d = sensor_fusion[i][6];
-                    //   if ( (d < (4 * (next_lane + 1))) && (d > (4 * next_lane)) ){
-                    //     double vx = sensor_fusion[i][3];
-                    //     double vy = sensor_fusion[i][4];
-                    //     double check_speed = distance(vy, 0, vx, 0);
-                    //     double check_car_s = sensor_fusion[i][5];
-                    //
-                    //     check_car_s += (double) prev_size * .02 * check_speed;
-                    //
-                    //     if(check_car_s > car_s && (check_car_s - car_s) < 30){
-                    //       free_lane = false;
-                    //     }
-                    //     if(car_s - check_car_s < 10){
-                    //       free_lane = false;
-                    //     }
-                    //   }
-                    //   if(!free_lane)
-                    //     break;
-                    // }
-                    // break;
+
                     free_lane = is_lane_change_possible(sensor_fusion, next_lane, car_s,prev_size);
                     if(free_lane){
                       lane = next_lane;
